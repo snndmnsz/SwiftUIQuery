@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Test package and build example
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+      - name: Run package tests
+        timeout-minutes: 3
+        # A pseudo-terminal streams test output even when a scenario is stuck.
+        run: /usr/bin/script -q /dev/null swift test
+      - name: Type-check SwiftUI example
+        run: ./Scripts/check-examples.sh
+      - name: Check iOS 15 API compatibility
+        run: ./Scripts/check-ios15.sh
+      - name: Build for iOS Simulator
+        run: >-
+          xcodebuild -scheme SwiftUIQuery
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath "$RUNNER_TEMP/SwiftUIQueryDerivedData"
+          IPHONEOS_DEPLOYMENT_TARGET=15.0 CODE_SIGNING_ALLOWED=NO build
