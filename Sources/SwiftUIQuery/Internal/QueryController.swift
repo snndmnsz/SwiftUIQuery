@@ -120,6 +120,8 @@ final class QueryController<Value: Sendable> {
     func refetch() async { await execute(force: true) }
 
     private func execute(force: Bool) async {
+        // A task canceled before entry has no observation ownership to release.
+        guard !Task.isCancelled else { return }
         let currentGeneration = generation
         let client = client, key = key, options = options
         guard let operation else { return }
@@ -187,8 +189,12 @@ final class QueryController<Value: Sendable> {
 
     /// Keeps the subscription alive for a SwiftUI .task, even without polling.
     func run() async {
+        guard !Task.isCancelled else { return }
+        // SwiftUI may start a replacement before the canceled task finishes cleanup.
+        // Claim a new generation before suspending so old cleanup cannot detach it.
+        stopObserving()
         let currentGeneration = generation
-        await runPeriodicRefetch()
+        await poll(generation: currentGeneration)
         guard currentGeneration == generation else { return }
         if options.refetchInterval == nil, !Task.isCancelled {
             do { try await lifecycleSleep(for: .days(365 * 100)) } catch { }
@@ -197,7 +203,13 @@ final class QueryController<Value: Sendable> {
     }
 
     func runPeriodicRefetch() async {
-        let currentGeneration = generation
+        guard !Task.isCancelled else { return }
+        stopObserving()
+        await poll(generation: generation)
+    }
+
+    private func poll(generation currentGeneration: Int) async {
+        guard !Task.isCancelled, currentGeneration == generation else { return }
         await fetch()
         guard currentGeneration == generation else { return }
         guard let interval = options.refetchInterval else { return }
@@ -229,14 +241,17 @@ final class QueryController<Value: Sendable> {
     func startPeriodicRefetch() {
         guard pollingTask == nil else { return }
         let interval = options.refetchInterval
-        let currentGeneration = generation
         if let interval, interval.seconds <= 0 {
             state.error = QueryError.invalidRefetchInterval
             return
         }
+        // cancelRefetch() cancels asynchronously; its previous fetch may still unwind.
+        stopObserving()
+        let currentGeneration = generation
         let id = UUID()
         pollingID = id
         pollingTask = Task { [weak self] in
+            guard !Task.isCancelled, self?.pollingID == id else { return }
             await self?.fetch()
             guard self?.pollingID == id else { return }
             guard let interval else {

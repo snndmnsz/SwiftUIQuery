@@ -12,7 +12,7 @@ Share query state across views, collect unused cache entries, and manage mutatio
 [![Platforms](https://img.shields.io/badge/platforms-iOS%2015%2B%20%7C%20macOS%2014%2B-42566E)](Package.swift)
 [![Swift Package Manager](https://img.shields.io/badge/Swift_Package_Manager-compatible-6778EF)](#installation)
 [![MIT License](https://img.shields.io/badge/license-MIT-34A78B)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.0-6778EF)](https://github.com/snndmnsz/SwiftUIQuery/releases/tag/0.1.0)
+[![Version](https://img.shields.io/badge/version-0.1.1-6778EF)](https://github.com/snndmnsz/SwiftUIQuery/releases/tag/0.1.1)
 
 [Getting started](Documentation/GettingStarted.md) · [SwiftUI guide](Documentation/SwiftUI.md) · [UIKit guide](Documentation/UIKit.md) · [API reference](Documentation/API.md) · [Examples](Examples) · [Changelog](CHANGELOG.md)
 
@@ -76,7 +76,7 @@ For another Swift package:
 dependencies: [
     .package(
         url: "https://github.com/snndmnsz/SwiftUIQuery.git",
-        .upToNextMinor(from: "0.1.0")
+        .upToNextMinor(from: "0.1.1")
     )
 ],
 targets: [

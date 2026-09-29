@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.1 — 2026-09-29
+
+### Fixed
+
+- Give replacement `run()` and `runPeriodicRefetch()` lifecycles a new generation so cleanup from a canceled task cannot detach the replacement's subscription.
+- Keep manual polling alive when canceled and restarted during its initial fetch or before its task begins executing.
+- Ignore already-canceled lifecycle and fetch calls instead of letting them tear down another active observation.
+- Add five parameterized regression tests covering fourteen scenarios across Observation and Combine adapters.
+
 ## 0.1.0 — 2026-09-28
 
 Initial release of SwiftUIQuery for SwiftUI and UIKit.

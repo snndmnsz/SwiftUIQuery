@@ -20,7 +20,7 @@ All adapters are @MainActor. Use @ObservedObject for a child receiving a Combine
 
 `run()` subscribes, performs a cache-aware initial fetch, and waits for cancellation. With a refetchInterval it also polls. SwiftUI cancels the task when the view disappears; the adapter detaches, and unused idle records can begin their gcTime countdown. Reappearing attaches again and reuses fresh cached data.
 
-Do not place code after `await query.run()` that needs to execute while the view is visible: run owns that task's lifetime. For one-shot work, use fetch/refetch. Those methods keep observing afterward; call `stopObserving()` when no longer needed. `dispose()` additionally releases the operation and UI data. One adapter should have one lifecycle loop.
+Do not place code after `await query.run()` that needs to execute while the view is visible: run owns that task's lifetime. For one-shot work, use fetch/refetch. Those methods keep observing afterward; call `stopObserving()` when no longer needed. `dispose()` additionally releases the operation and UI data. One adapter should have one lifecycle loop. Starting a replacement `run()` or `runPeriodicRefetch()` supersedes the previous lifecycle; cancellation cleanup from the old task cannot detach the new subscription. A caller that is already canceled does not change an active lifecycle.
 
 `refetch()` works even before the adapter's first fetch or after client removal. `enabled: false` keeps automatic loads idle, still exposes cached/initial data, and permits explicit manual refetch. Same-key changes from another observer remain visible.
 

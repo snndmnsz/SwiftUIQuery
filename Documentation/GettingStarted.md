@@ -15,7 +15,7 @@ The manifest uses Swift 6 language mode. Result values must conform to `Sendable
 
 ## Add the package
 
-In Xcode, open **File → Add Package Dependencies**, paste `https://github.com/snndmnsz/SwiftUIQuery.git`, select a version, and add the library product to your target. For the 0.1 series, prefer **Up to Next Minor Version** starting at `0.1.0`.
+In Xcode, open **File → Add Package Dependencies**, paste `https://github.com/snndmnsz/SwiftUIQuery.git`, select a version, and add the library product to your target. For the 0.1 series, prefer **Up to Next Minor Version** starting at `0.1.1`.
 
 Do not embed credentials in the package URL or commit access tokens.
 
