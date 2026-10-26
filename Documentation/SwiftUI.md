@@ -61,6 +61,24 @@ With `.task { await query.run() }`, the initial load uses cache, then every tick
 
 For manual ownership, `startPeriodicRefetch()`/`cancelRefetch()` start/stop an internal loop. Canceling polling stops future ticks; `query.cancel()` explicitly cancels shared request work for all consumers. Detaching one observer preserves requests used by other observers or waiters.
 
+### Stop polling after retries are exhausted
+
+```swift
+let query = QueryResult<[Product]>(
+    key: "products",
+    options: QueryOptions(retry: 2, retryOnMount: false),
+    refetchInterval: { state in
+        state.isSuccess ? .seconds(20) : nil
+    }
+) {
+    try await service.products()
+}
+```
+
+Use the same initializer with `ObservableQueryResult` on iOS 15. The initial request gets at most three attempts. A terminal error stops the timer; successful requests continue every 20 seconds. A successful `await query.refetch()` resumes polling. The callback can also inspect `state.data` to stop when a job finishes or choose a different interval.
+
+A `nil` interval keeps the lifecycle subscribed until canceled. `retryOnMount: false` prevents the initial load from retrying a cached error when the screen reappears. Leave it true for automatic retry on reappearance. `refetchOnMount: false` separately suppresses the initial refresh of existing stale data. Both settings leave manual refresh and polling ticks available.
+
 ## Memory ownership
 
 The cache retains operation closures until removal or inactive GC. The adapter also retains its configured closure. Avoid capturing an entire view model that owns the result. Capture an independent service and immutable parameters, or use the weak-owner initializer:

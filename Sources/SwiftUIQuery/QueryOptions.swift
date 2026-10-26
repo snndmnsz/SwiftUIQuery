@@ -15,6 +15,10 @@ public struct QueryOptions: Sendable, Equatable {
     public var exponentialBackoff: Bool
     public var refetchInterval: CacheDuration?
     public var keepPreviousData: Bool
+    /// Allow a failed query to retry when an adapter lifecycle starts again.
+    public var retryOnMount: Bool
+    /// Refresh stale cached data when an adapter lifecycle starts again.
+    public var refetchOnMount: Bool
 
     public init(
         enabled: Bool = true,
@@ -25,7 +29,9 @@ public struct QueryOptions: Sendable, Equatable {
         refetchInterval: CacheDuration? = nil,
         keepPreviousData: Bool = true,
         staleTime: CacheDuration? = nil,
-        gcTime: CacheDuration = .default
+        gcTime: CacheDuration = .default,
+        retryOnMount: Bool = true,
+        refetchOnMount: Bool = true
     ) {
         self.enabled = enabled
         self.staleTime = staleTime ?? cacheTime
@@ -35,5 +41,7 @@ public struct QueryOptions: Sendable, Equatable {
         self.exponentialBackoff = exponentialBackoff
         self.refetchInterval = refetchInterval
         self.keepPreviousData = keepPreviousData
+        self.retryOnMount = retryOnMount
+        self.refetchOnMount = refetchOnMount
     }
 }

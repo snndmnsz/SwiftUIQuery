@@ -11,11 +11,14 @@ public final class ObservableQueryResult<Value: Sendable>: ObservableObject {
     @Published public private(set) var state: QueryState<Value>
     private let controller: QueryController<Value>
 
+    /// A state-based interval overrides options.refetchInterval; nil pauses its timer.
+    /// The policy runs on the main actor and should be quick and free of side effects.
     public init(
         key: QueryKey,
         client: QueryClient = .shared,
         options: QueryOptions = QueryOptions(),
         initialData: Value? = nil,
+        refetchInterval: (@MainActor (QueryState<Value>) -> CacheDuration?)? = nil,
         operation: @escaping @Sendable () async throws -> Value
     ) {
         let controller = QueryController(
@@ -23,6 +26,7 @@ public final class ObservableQueryResult<Value: Sendable>: ObservableObject {
             client: client,
             options: options,
             initialData: initialData,
+            refetchInterval: refetchInterval,
             operation: operation
         )
         self.controller = controller
@@ -36,9 +40,11 @@ public final class ObservableQueryResult<Value: Sendable>: ObservableObject {
     public convenience init<Owner: AnyObject & Sendable>(
         key: QueryKey, owner: Owner, client: QueryClient = .shared,
         options: QueryOptions = QueryOptions(), initialData: Value? = nil,
+        refetchInterval: (@MainActor (QueryState<Value>) -> CacheDuration?)? = nil,
         operation: @escaping @Sendable (Owner) async throws -> Value
     ) {
-        self.init(key: key, client: client, options: options, initialData: initialData) { [weak owner] in
+        self.init(key: key, client: client, options: options, initialData: initialData,
+                  refetchInterval: refetchInterval) { [weak owner] in
             guard let owner else { throw QueryError.ownerReleased }
             return try await operation(owner)
         }
@@ -91,6 +97,18 @@ public final class ObservableQueryResult<Value: Sendable>: ObservableObject {
         operation: @escaping @Sendable () async throws -> Value
     ) {
         controller.update(key: key, client: client, options: options, operation: operation)
+    }
+
+    /// Replaces the configuration, including its state-based polling policy.
+    public func update(
+        key: QueryKey,
+        client: QueryClient? = nil,
+        options: QueryOptions? = nil,
+        refetchInterval: (@MainActor (QueryState<Value>) -> CacheDuration?)?,
+        operation: @escaping @Sendable () async throws -> Value
+    ) {
+        controller.update(key: key, client: client, options: options,
+                          refetchInterval: refetchInterval, operation: operation)
     }
 
     public func update(from result: ObservableQueryResult<Value>) {

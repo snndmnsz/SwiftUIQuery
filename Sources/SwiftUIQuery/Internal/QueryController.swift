@@ -4,12 +4,17 @@ import Foundation
 @MainActor
 final class QueryController<Value: Sendable> {
     private(set) var state = QueryState<Value>() {
-        didSet { onStateChange?(state) }
+        didSet {
+            onStateChange?(state)
+            // Re-evaluate a state-based interval, including a currently paused loop.
+            if refetchInterval != nil { sleepTask?.cancel() }
+        }
     }
     var onStateChange: (@MainActor (QueryState<Value>) -> Void)?
     private var key: QueryKey
     private var client: QueryClient
     private var options: QueryOptions
+    private var refetchInterval: (@MainActor (QueryState<Value>) -> CacheDuration?)?
     private var operation: (@Sendable () async throws -> Value)?
     private var initialData: Value?
     private var generation = 0
@@ -24,10 +29,13 @@ final class QueryController<Value: Sendable> {
     private var sleepID: UUID?
 
     init(key: QueryKey, client: QueryClient = .shared, options: QueryOptions = QueryOptions(),
-         initialData: Value? = nil, operation: @escaping @Sendable () async throws -> Value) {
+         initialData: Value? = nil,
+         refetchInterval: (@MainActor (QueryState<Value>) -> CacheDuration?)? = nil,
+         operation: @escaping @Sendable () async throws -> Value) {
         self.key = key
         self.client = client
         self.options = options
+        self.refetchInterval = refetchInterval
         self.initialData = initialData
         self.operation = operation
         state.data = initialData
@@ -44,12 +52,20 @@ final class QueryController<Value: Sendable> {
 
     func update(key: QueryKey, client: QueryClient? = nil, options: QueryOptions? = nil,
                 operation: @escaping @Sendable () async throws -> Value) {
+        update(key: key, client: client, options: options,
+               refetchInterval: refetchInterval, operation: operation)
+    }
+
+    func update(key: QueryKey, client: QueryClient? = nil, options: QueryOptions? = nil,
+                refetchInterval: (@MainActor (QueryState<Value>) -> CacheDuration?)?,
+                operation: @escaping @Sendable () async throws -> Value) {
         stopObserving()
         cancelRefetch()
         let previous = state
         self.key = key
         self.client = client ?? self.client
         self.options = options ?? self.options
+        self.refetchInterval = refetchInterval
         self.operation = operation
         initialData = nil
         state = self.options.keepPreviousData
@@ -60,7 +76,8 @@ final class QueryController<Value: Sendable> {
 
     func update(from result: QueryController<Value>) {
         guard let operation = result.operation else { return }
-        update(key: result.key, client: result.client, options: result.options, operation: operation)
+        update(key: result.key, client: result.client, options: result.options,
+               refetchInterval: result.refetchInterval, operation: operation)
     }
 
     private func connect() async throws {
@@ -119,7 +136,7 @@ final class QueryController<Value: Sendable> {
     func fetch() async { await execute(force: false) }
     func refetch() async { await execute(force: true) }
 
-    private func execute(force: Bool) async {
+    private func execute(force: Bool, onMount: Bool = false) async {
         // A task canceled before entry has no observation ownership to release.
         guard !Task.isCancelled else { return }
         let currentGeneration = generation
@@ -130,6 +147,12 @@ final class QueryController<Value: Sendable> {
             try await connect()
             try Task.checkCancellation()
             guard currentGeneration == generation else { return }
+            if onMount, let snapshot = try await client.snapshot(key, as: Value.self) {
+                guard currentGeneration == generation else { return }
+                receive(snapshot, generation: currentGeneration)
+                if snapshot.state.isError, !options.retryOnMount { return }
+                if snapshot.state.data != nil, !options.refetchOnMount { return }
+            }
             if force || options.enabled {
                 state.isLoading = state.data == nil
                 state.isFetching = true
@@ -181,6 +204,7 @@ final class QueryController<Value: Sendable> {
         cancelRefetch()
         stopObserving()
         operation = nil
+        refetchInterval = nil
         initialData = nil
         state = QueryState()
     }
@@ -196,7 +220,7 @@ final class QueryController<Value: Sendable> {
         let currentGeneration = generation
         await poll(generation: currentGeneration)
         guard currentGeneration == generation else { return }
-        if options.refetchInterval == nil, !Task.isCancelled {
+        if options.refetchInterval == nil, refetchInterval == nil, !Task.isCancelled {
             do { try await lifecycleSleep(for: .days(365 * 100)) } catch { }
         }
         if currentGeneration == generation { stopObserving() }
@@ -210,29 +234,53 @@ final class QueryController<Value: Sendable> {
 
     private func poll(generation currentGeneration: Int) async {
         guard !Task.isCancelled, currentGeneration == generation else { return }
-        await fetch()
+        await execute(force: false, onMount: true)
         guard currentGeneration == generation else { return }
-        guard let interval = options.refetchInterval else { return }
-        guard interval.seconds > 0 else {
-            state.error = QueryError.invalidRefetchInterval
-            return
-        }
+        guard options.refetchInterval != nil || refetchInterval != nil else { return }
         defer { if Task.isCancelled, currentGeneration == generation { stopObserving() } }
         while !Task.isCancelled, currentGeneration == generation {
-            do { try await lifecycleSleep(for: interval) } catch { return }
-            guard options.enabled, currentGeneration == generation else { continue }
+            let interval: CacheDuration?
+            do { interval = try pollingInterval() }
+            catch { state.error = error; return }
+            // nil disables the timer, while observation remains available to resume it.
+            do { try await lifecycleSleep(for: interval) }
+            catch { continue }
+            guard interval != nil, options.enabled, currentGeneration == generation else { continue }
             await refetch()
         }
     }
 
-    private func lifecycleSleep(for duration: CacheDuration) async throws {
+    private func pollingInterval() throws -> CacheDuration? {
+        let interval: CacheDuration?
+        if let refetchInterval { interval = refetchInterval(state) }
+        else { interval = options.refetchInterval }
+        if let interval, interval.seconds <= 0 { throw QueryError.invalidRefetchInterval }
+        return options.enabled && (refetchInterval == nil || !state.isFetching) ? interval : nil
+    }
+
+    private func beginSleep(for duration: CacheDuration?) -> (UUID, Task<Void, any Error>) {
         let id = UUID()
-        let task = Task { try await QuerySleep.sleep(for: duration) }
+        let task = Task<Void, any Error> {
+            if let duration { try await QuerySleep.sleep(for: duration) }
+            else {
+                // No timer while paused. AsyncStream cancellation wakes this wait.
+                let stream = AsyncStream<Void> { _ in }
+                for await _ in stream { }
+                try Task.checkCancellation()
+            }
+        }
         sleepID = id
         sleepTask = task
-        defer {
-            if sleepID == id { sleepTask = nil; sleepID = nil }
-        }
+        return (id, task)
+    }
+
+    private func endSleep(_ id: UUID) {
+        if sleepID == id { sleepTask = nil; sleepID = nil }
+    }
+
+    private func lifecycleSleep(for duration: CacheDuration?) async throws {
+        let (id, task) = beginSleep(for: duration)
+        defer { endSleep(id) }
         try await withTaskCancellationHandler {
             try await task.value
         } onCancel: { task.cancel() }
@@ -240,8 +288,7 @@ final class QueryController<Value: Sendable> {
 
     func startPeriodicRefetch() {
         guard pollingTask == nil else { return }
-        let interval = options.refetchInterval
-        if let interval, interval.seconds <= 0 {
+        if refetchInterval == nil, let interval = options.refetchInterval, interval.seconds <= 0 {
             state.error = QueryError.invalidRefetchInterval
             return
         }
@@ -252,17 +299,32 @@ final class QueryController<Value: Sendable> {
         pollingID = id
         pollingTask = Task { [weak self] in
             guard !Task.isCancelled, self?.pollingID == id else { return }
-            await self?.fetch()
+            await self?.execute(force: false, onMount: true)
             guard self?.pollingID == id else { return }
-            guard let interval else {
-                self?.pollingID = nil
-                self?.pollingTask = nil
-                return
+            defer {
+                if self?.pollingID == id {
+                    self?.pollingID = nil
+                    self?.pollingTask = nil
+                }
             }
-            while !Task.isCancelled {
-                do { try await QuerySleep.sleep(for: interval) } catch { return }
-                guard let self, self.generation == currentGeneration else { return }
-                if self.options.enabled { await self.refetch() }
+            guard self?.options.refetchInterval != nil || self?.refetchInterval != nil else { return }
+            while !Task.isCancelled, self?.generation == currentGeneration {
+                let interval: CacheDuration?
+                do { interval = try self?.pollingInterval() }
+                catch { self?.state.error = error; return }
+                // Keep only the sleep task alive across suspension, not the controller.
+                guard let (sleepID, task) = self?.beginSleep(for: interval) else { return }
+                do {
+                    try await withTaskCancellationHandler {
+                        try await task.value
+                    } onCancel: { task.cancel() }
+                } catch {
+                    self?.endSleep(sleepID)
+                    continue
+                }
+                self?.endSleep(sleepID)
+                guard !Task.isCancelled, self?.generation == currentGeneration else { return }
+                if interval != nil, self?.options.enabled == true { await self?.refetch() }
             }
         }
     }

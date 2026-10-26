@@ -2,7 +2,7 @@
 
 [Documentation index](../README.md#documentation)
 
-API baseline: **0.1.0**. Swift 6.0+, iOS 15+, macOS 14+.
+API baseline: **0.1.2**. Swift 6.0+, iOS 15+, macOS 14+.
 
 ## QueryClient
 
@@ -38,6 +38,8 @@ An actor; calls from outside its isolation use `await`.
 | `exponentialBackoff` | false | Multiply retry delay by powers of two. |
 | `refetchInterval` | nil | Optional positive interval for forced periodic refetch. |
 | `keepPreviousData` | true | Keep observer-local previous-key placeholder after update. |
+| `retryOnMount` | true | Allow a failed query to load when a lifecycle starts again. |
+| `refetchOnMount` | true | Allow stale cached data to refresh when a lifecycle starts again. |
 
 `CacheDuration.seconds/minutes/hours/days` constructs durations. Negative and NaN values normalize to zero. Very large sleep durations saturate rather than overflowing.
 
@@ -46,11 +48,15 @@ An actor; calls from outside its isolation use `await`.
 - `ObservableQueryResult<Value>`: Combine ObservableObject, iOS 15+, own with @StateObject in SwiftUI or a stored property and `$state` subscription in UIKit.
 - `QueryResult<Value>`: Observation @Observable, iOS 17+, own with @State.
 
-Both are @MainActor and initialize with `key`, `client`, `options`, `initialData`, and `operation`. An `owner:` convenience initializer captures an `AnyObject & Sendable` owner weakly and passes it to the operation. Main-actor view models satisfy Sendable isolation requirements.
+Both are @MainActor and initialize with `key`, `client`, `options`, `initialData`, optional `refetchInterval`, and `operation`. An `owner:` convenience initializer captures an `AnyObject & Sendable` owner weakly and passes it to the operation. Main-actor view models satisfy Sendable isolation requirements.
 
 State: `state`, `data`, `error`, `isLoading`, `isFetching`, `isSuccess`, `isError`, `isResolved`, `lastUpdated`, `isStale`, `isPreviousData`.
 
-Methods: `fetch()`, `refetch()`, `run()`, `runPeriodicRefetch()`, `startPeriodicRefetch()`, `cancelRefetch()`, `cancel()`, `stopObserving()`, `dispose()`, `update(key:client:options:operation:)`, `update(from:)`.
+`refetchInterval` on the adapter is an optional `@MainActor (QueryState<Value>) -> CacheDuration?` function. It takes precedence over `QueryOptions.refetchInterval`, including when it returns `nil`. Return a positive duration to schedule the next forced refetch, or `nil` to disable the timer. The policy receives typed data, error, and loading state; it is re-evaluated after state changes. A paused loop stays subscribed and resumes when its state permits. The callback runs synchronously on the main actor: keep it quick and free of side effects. Its captures follow ordinary closure ownership rules, including with the weak-owner initializer.
+
+Methods: `fetch()`, `refetch()`, `run()`, `runPeriodicRefetch()`, `startPeriodicRefetch()`, `cancelRefetch()`, `cancel()`, `stopObserving()`, `dispose()`, `update(key:client:options:operation:)`, `update(key:client:options:refetchInterval:operation:)`, `update(from:)`. The original `update` overload retains the state-based interval; use the new overload to replace it or explicitly pass `nil` to clear it. `update(from:)` copies the source policy. `dispose()` releases the policy closure.
+
+`retryOnMount` and `refetchOnMount` apply to the initial load of `run()`, `runPeriodicRefetch()`, and `startPeriodicRefetch()`. They do not suppress explicit `fetch()`/`refetch()`, invalidation, or subsequent polling ticks. `refetchOnMount: false` still loads an empty query. Fresh cached data is reused by default. These Boolean policies do not include an always-refetch mode.
 
 `run` observes for the caller's task lifetime. `fetch`/`refetch` perform one load but keep observing. `cancel` cancels the shared request; `cancelRefetch` only cancels manually started polling. `dispose` clears the operation and data; `update` can configure the result again.
 

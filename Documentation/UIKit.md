@@ -34,7 +34,7 @@ Import `UIKit`, `Combine`, and `SwiftUIQuery`. Keep the result and cancellables 
 
 `$state` immediately delivers the current snapshot and emits subsequent changes on the main actor. Render the closure's `state` argument: `@Published` emits before the stored property is updated, so reading `query.data` inside the sink can return the previous value. Errors appear in `state.error`; they do not terminate the publisher.
 
-`startPeriodicRefetch()` starts a cache-aware fetch and adds polling only when `refetchInterval` is configured. `stopObserving()` detaches this query observer and stops its polling. On the next appearance, bind and start again to read the latest cache. Cancel any separately owned refresh tasks when leaving the screen, as the full example does.
+`startPeriodicRefetch()` starts a cache-aware fetch and adds polling when a fixed `QueryOptions.refetchInterval` or an adapter state-based `refetchInterval` callback is configured. Returning `nil` from the callback pauses its timer while keeping observation attached. `retryOnMount` and `refetchOnMount` control the initial load on subsequent appearances. `stopObserving()` detaches this query observer and stops its polling. On the next appearance, bind and start again to read the latest cache. Cancel any separately owned refresh tasks when leaving the screen, as the full example does.
 
 Canceling a Combine subscription only disconnects UI delivery; it does not detach the result from the cache. Call `stopObserving()` for that. Use `cancel()` only when you intend to cancel the shared request for all consumers of the key. `dispose()` additionally releases the operation and data, so it is unsuitable for a temporary disappearance unless you configure the result again with `update(...)`.
 

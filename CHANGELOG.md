@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.2 — 2026-10-26
+
+### Added
+
+- State-based `refetchInterval` callbacks on both query adapters, including weak-owner initializers and configuration updates. Return a positive duration to poll, or `nil` to disable the timer while retaining observation.
+- Re-evaluate polling intervals on state changes and resume paused polling after a successful manual refetch or shared cache update.
+- `retryOnMount` and `refetchOnMount` options to control initial loads on lifecycle restarts independently of request retries and periodic refresh.
+
+### Fixed
+
+- Allow polling to stop after the existing retry budget is exhausted, including refresh failures that preserve previous data, without adding another error counter.
+- Keep existing fixed-interval behavior and lifecycle cancellation guarantees.
+
+### Validation
+
+- All 98 package tests pass, including 12 new tests covering both adapters, all polling lifecycles, retry exhaustion, shared state changes, interval validation, mount policies, and closure lifetime.
+
 ## 0.1.1 — 2026-09-29
 
 ### Fixed

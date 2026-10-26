@@ -61,6 +61,12 @@ Query `retry` counts extra attempts and defaults to zero. Exponential delays are
 
 Polling performs a cache-aware initial fetch and then **forced refetches** on each tick, regardless of freshness. Intervals must be positive. Disabled queries do not poll. Work is sequential within one loop; ticks do not overlap that loop's request. `run()` supports both polling and non-polling views. `runPeriodicRefetch()` returns after the initial fetch if no interval is configured. Use only one lifecycle loop per adapter. Restart after changing options.
 
+An adapter can also take `refetchInterval: { state in ... }`. This typed callback overrides the fixed interval. Return `nil` to stop the timer; the observer and lifecycle remain attached so shared cache writes, invalidation, or a successful manual refetch can resume polling. The interval is recalculated on state updates, including while waiting. No polling request is started while a state-based query is already fetching or retrying. A callback that returns a nonpositive interval produces `QueryError.invalidRefetchInterval` and ends that polling loop.
+
+Retries belong to each request. A fixed interval continues polling after retries are exhausted. To stop at the terminal error, return an interval only when `state.isSuccess` is true. A refresh error can coexist with cached data, so check success/error rather than just the presence of data. No second error counter is needed.
+
+Lifecycle restarts use `retryOnMount` and `refetchOnMount`, both true by default. `retryOnMount: false` leaves a cached error visible without automatically retrying the initial load. `refetchOnMount: false` reuses existing data even when stale, but still loads a query with no data and no blocked error. These options apply only to the initial lifecycle load; explicit fetch/refetch, invalidation, and configured polling remain independent.
+
 ## Mutation and optimistic updates
 
 See [Mutations](Mutations.md). Mutations are independent writes: never query-cached, deduplicated, or automatically retried. Query cache optimistic writes return a conditional rollback token, preventing rollback from overwriting a newer server/cache write. This is a snapshot rollback primitive, not a transaction engine that merges concurrent optimistic edits.
