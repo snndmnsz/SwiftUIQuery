@@ -15,7 +15,7 @@ private final class QueryOwner: Sendable {
 @MainActor private final class ScreenOwner {
     var query: ObservableQueryResult<Int>?
     init() {
-        query = ObservableQueryResult(key: "weak-owner", owner: self, client: QueryClient()) { owner in
+        query = ObservableQueryResult(key: "weak-owner", owner: self, client: QueryClient(automaticallyMonitorsNetwork: false)) { owner in
             await owner.load()
         }
     }
@@ -34,7 +34,7 @@ private final class QueryOwner: Sendable {
         return WeakReference(value)
     }
     @Test func inactiveDataAndClosuresAreAutomaticallyCollected() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         var references: [WeakReference<MemoryPayload>] = []
         for n in 0..<100 {
             references.append(try await cachePayload(client, key: QueryKey("data/\(n)")))
@@ -44,7 +44,7 @@ private final class QueryOwner: Sendable {
     }
 
     private func createCycle() async throws -> (WeakReference<QueryOwner>, WeakReference<QueryClient>) {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let owner = QueryOwner(client)
         let _: Int = try await client.fetch(key: "cycle", gcTime: .seconds(0)) { owner.load() }
         return (WeakReference(owner), WeakReference(client))
@@ -57,7 +57,7 @@ private final class QueryOwner: Sendable {
     @Test func garbageCollectionTimerDoesNotRetainOtherwiseUnusedClient() async throws {
         weak var released: QueryClient?
         do {
-            let client = QueryClient()
+            let client = QueryClient(automaticallyMonitorsNetwork: false)
             released = client
             let _: Int = try await client.fetch(key: "long-gc", gcTime: .days(1)) { 1 }
         }
@@ -77,7 +77,7 @@ private final class QueryOwner: Sendable {
     }
 
     @Test func activeObserverPinsDataUntilDetached() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let query = ObservableQueryResult<MemoryPayload>(key: "pinned", client: client,
             options: QueryOptions(staleTime: .seconds(0), gcTime: .seconds(0))) { MemoryPayload() }
         await query.fetch()
@@ -89,7 +89,7 @@ private final class QueryOwner: Sendable {
     }
 
     @Test func deinitializingActiveAdaptersReleasesSubscriptionsAndData() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         weak var query: QueryResult<MemoryPayload>?
         weak var payload: MemoryPayload?
         do {

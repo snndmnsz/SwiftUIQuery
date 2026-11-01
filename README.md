@@ -12,9 +12,9 @@ Share query state across views, collect unused cache entries, and manage mutatio
 [![Platforms](https://img.shields.io/badge/platforms-iOS%2015%2B%20%7C%20macOS%2014%2B-42566E)](Package.swift)
 [![Swift Package Manager](https://img.shields.io/badge/Swift_Package_Manager-compatible-6778EF)](#installation)
 [![MIT License](https://img.shields.io/badge/license-MIT-34A78B)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.2-6778EF)](https://github.com/snndmnsz/SwiftUIQuery/releases/tag/0.1.2)
+[![Version](https://img.shields.io/badge/version-0.1.3-6778EF)](https://github.com/snndmnsz/SwiftUIQuery/releases/tag/0.1.3)
 
-[Getting started](Documentation/GettingStarted.md) · [SwiftUI guide](Documentation/SwiftUI.md) · [UIKit guide](Documentation/UIKit.md) · [API reference](Documentation/API.md) · [Examples](Examples) · [Changelog](CHANGELOG.md)
+[Getting started](Documentation/GettingStarted.md) · [SwiftUI guide](Documentation/SwiftUI.md) · [UIKit guide](Documentation/UIKit.md) · [Connectivity](Documentation/Connectivity.md) · [API reference](Documentation/API.md) · [Examples](Examples) · [Changelog](CHANGELOG.md)
 
 </div>
 
@@ -51,6 +51,7 @@ A subsequent fetch for the same key can reuse the cached value. Use `refetch(key
 | Prefetch and refresh | Warm the cache or rerun a registered operation. |
 | Parameter changes | Keep previous data while switching to a new query key. |
 | Periodic refresh | Use a fixed or state-based interval, tied to your view task. |
+| Connectivity | Pause offline attempts, resume shared requests on reconnect, and optionally recover exhausted polling. |
 | Mutations | Track writes, pending/error state, and async reconciliation callbacks. |
 | Optimistic updates | Update cached data immediately with conditional rollback on failure. |
 | Cancellation | Cancel shared work explicitly or detach individual consumers safely. |
@@ -76,7 +77,7 @@ For another Swift package:
 dependencies: [
     .package(
         url: "https://github.com/snndmnsz/SwiftUIQuery.git",
-        .upToNextMinor(from: "0.1.2")
+        .upToNextMinor(from: "0.1.3")
     )
 ],
 targets: [

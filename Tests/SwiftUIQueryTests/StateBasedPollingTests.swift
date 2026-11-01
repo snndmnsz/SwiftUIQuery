@@ -24,7 +24,7 @@ private enum PollingAdapter: CaseIterable, Sendable {
 
     @MainActor
     func make(
-        client: QueryClient = QueryClient(), options: QueryOptions = QueryOptions(),
+        client: QueryClient = QueryClient(automaticallyMonitorsNetwork: false), options: QueryOptions = QueryOptions(),
         initialData: Int? = nil,
         interval: (@MainActor (QueryState<Int>) -> CacheDuration?)? = nil,
         operation: @escaping @Sendable () async throws -> Int
@@ -111,7 +111,7 @@ struct StateBasedPollingTests {
     fileprivate func sharedStateChangesRescheduleAndResumePolling(
         adapter: PollingAdapter, loop: PollingLoop
     ) async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
         let query = adapter.make(client: client, initialData: 10, interval: {
             guard let data = $0.data, data < 10 else { return nil }
@@ -165,7 +165,7 @@ struct StateBasedPollingTests {
     fileprivate func retryOnMountControlsFailedLifecycleRestart(
         adapter: PollingAdapter, loop: PollingLoop
     ) async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
         let query = adapter.make(client: client, options: QueryOptions(retryOnMount: false)) {
             await counter.increment()
@@ -222,7 +222,7 @@ struct StateBasedPollingTests {
     fileprivate func cancelledPausedLoopCannotDetachItsReplacement(
         adapter: PollingAdapter, loop: PollingLoop
     ) async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let query = adapter.make(client: client, interval: { _ in nil }) { 1 }
         let old = loop.start(query)
         #expect(await eventually { query.state.data == 1 })
@@ -269,14 +269,14 @@ struct StateBasedPollingTests {
         do {
             let token = Token()
             released = token
-            let query = QueryController<Int>(key: "release-policy", client: QueryClient(),
+            let query = QueryController<Int>(key: "release-policy", client: QueryClient(automaticallyMonitorsNetwork: false),
                                             refetchInterval: { [token] _ in _ = token; return nil }) { 1 }
             controller = query
             query.startPeriodicRefetch()
             #expect(await eventually { query.state.data == 1 })
         }
         #expect(await eventually { controller == nil && released == nil })
-        let query = QueryController<Int>(key: "dispose-policy", client: QueryClient()) { 1 }
+        let query = QueryController<Int>(key: "dispose-policy", client: QueryClient(automaticallyMonitorsNetwork: false)) { 1 }
         do {
             let token = Token()
             released = token
@@ -290,7 +290,7 @@ struct StateBasedPollingTests {
 
     @Test func updateRetainsCopiesAndExplicitlyClearsPolicy() async {
         let counter = CallCounter()
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let query = QueryController<Int>(key: "policy", client: client, refetchInterval: {
             $0.isSuccess && ($0.data ?? 0) < 2 ? .seconds(0.005) : nil
         }) { 0 }

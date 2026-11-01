@@ -77,7 +77,7 @@ let query = QueryResult<[Product]>(
 
 Use the same initializer with `ObservableQueryResult` on iOS 15. The initial request gets at most three attempts. A terminal error stops the timer; successful requests continue every 20 seconds. A successful `await query.refetch()` resumes polling. The callback can also inspect `state.data` to stop when a job finishes or choose a different interval.
 
-A `nil` interval keeps the lifecycle subscribed until canceled. `retryOnMount: false` prevents the initial load from retrying a cached error when the screen reappears. Leave it true for automatic retry on reappearance. `refetchOnMount: false` separately suppresses the initial refresh of existing stale data. Both settings leave manual refresh and polling ticks available.
+A `nil` interval keeps the lifecycle subscribed until canceled. `retryOnMount: false` prevents the initial load from retrying a cached error when the screen reappears. Leave it true for automatic retry on reappearance. `refetchOnMount: false` separately suppresses the initial refresh of existing stale data. Both settings leave manual refresh and polling ticks available. Network reconnect is controlled separately by `refetchOnReconnect`; an exhausted query can use the existing state-based `refetchInterval` for a slower recovery cadence. See [Connectivity and recovery](Connectivity.md).
 
 ## Memory ownership
 

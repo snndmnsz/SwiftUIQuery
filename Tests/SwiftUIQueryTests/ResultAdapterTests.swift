@@ -36,10 +36,10 @@ private enum Adapter: CaseIterable, Sendable {
     ) -> any IntegerResult {
         switch self {
         case .observation:
-            QueryResult(key: "result", client: QueryClient(), options: options,
+            QueryResult(key: "result", client: QueryClient(automaticallyMonitorsNetwork: false), options: options,
                         initialData: initialData, operation: operation)
         case .combine:
-            ObservableQueryResult(key: "result", client: QueryClient(), options: options,
+            ObservableQueryResult(key: "result", client: QueryClient(automaticallyMonitorsNetwork: false), options: options,
                                   initialData: initialData, operation: operation)
         }
     }
@@ -148,7 +148,7 @@ struct ResultAdapterTests {
 
     @available(iOS 17, *)
     @Test func observationStillNotifiesReaders() async {
-        let result = QueryResult<Int>(key: "observation", client: QueryClient()) { 1 }
+        let result = QueryResult<Int>(key: "observation", client: QueryClient(automaticallyMonitorsNetwork: false)) { 1 }
         await confirmation("Observation notifies the view") { changed in
             withObservationTracking {
                 _ = result.isFetching
@@ -165,7 +165,7 @@ struct ResultAdapterTests {
 @Suite("iOS 15 observable result")
 struct ObservableQueryResultTests {
     @Test func publishesStateChanges() async {
-        let result = ObservableQueryResult<Int>(key: "combine", client: QueryClient()) { 42 }
+        let result = ObservableQueryResult<Int>(key: "combine", client: QueryClient(automaticallyMonitorsNetwork: false)) { 42 }
         var states: [QueryState<Int>] = []
         let subscription = result.$state.sink { states.append($0) }
         await result.fetch()
@@ -179,7 +179,7 @@ struct ObservableQueryResultTests {
         weak var released: ObservableQueryResult<Int>?
         do {
             let result = ObservableQueryResult<Int>(
-                key: "lifetime", client: QueryClient(),
+                key: "lifetime", client: QueryClient(automaticallyMonitorsNetwork: false),
                 options: QueryOptions(refetchInterval: .hours(1))
             ) { 1 }
             released = result
@@ -189,7 +189,7 @@ struct ObservableQueryResultTests {
     }
 
     @Test func copiesConfigurationWithoutCopyingState() async {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let source = ObservableQueryResult<Int>(key: "source", client: client,
                                                 initialData: 7) { 8 }
         let target = ObservableQueryResult<Int>(key: "target", client: client,

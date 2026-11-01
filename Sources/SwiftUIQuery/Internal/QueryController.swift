@@ -7,7 +7,7 @@ final class QueryController<Value: Sendable> {
         didSet {
             onStateChange?(state)
             // Re-evaluate a state-based interval, including a currently paused loop.
-            if refetchInterval != nil { sleepTask?.cancel() }
+            if refetchInterval != nil || oldValue.isPaused != state.isPaused { sleepTask?.cancel() }
         }
     }
     var onStateChange: (@MainActor (QueryState<Value>) -> Void)?
@@ -121,8 +121,8 @@ final class QueryController<Value: Sendable> {
         // The initial idle snapshot may arrive after a local call has started.
         // Keep its loading indication until that call observes shared completion.
         if !executions.isEmpty {
-            next.isFetching = true
-            next.isLoading = next.data == nil
+            next.isFetching = !next.isPaused
+            next.isLoading = next.data == nil && !next.isPaused
         }
         if !snapshot.wasRemoved, next.data == nil, state.isPreviousData, options.keepPreviousData {
             next.data = state.data
@@ -154,8 +154,9 @@ final class QueryController<Value: Sendable> {
                 if snapshot.state.data != nil, !options.refetchOnMount { return }
             }
             if force || options.enabled {
-                state.isLoading = state.data == nil
-                state.isFetching = true
+                // A manual refresh can join an existing offline request.
+                state.isLoading = state.data == nil && !state.isPaused
+                state.isFetching = !state.isPaused
                 let id = UUID()
                 let task = Task {
                     try await client.execute(key: key, options: options, force: force, operation: operation)
@@ -197,6 +198,7 @@ final class QueryController<Value: Sendable> {
         lease = nil
         state.isLoading = false
         state.isFetching = false
+        state.isPaused = false
     }
 
     /// Releases the retained operation and previous UI data. update() can configure it again.
@@ -255,7 +257,7 @@ final class QueryController<Value: Sendable> {
         if let refetchInterval { interval = refetchInterval(state) }
         else { interval = options.refetchInterval }
         if let interval, interval.seconds <= 0 { throw QueryError.invalidRefetchInterval }
-        return options.enabled && (refetchInterval == nil || !state.isFetching) ? interval : nil
+        return options.enabled && !state.isPaused && (refetchInterval == nil || !state.isFetching) ? interval : nil
     }
 
     private func beginSleep(for duration: CacheDuration?) -> (UUID, Task<Void, any Error>) {

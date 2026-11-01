@@ -6,9 +6,44 @@ public actor QueryClient {
     private var records: [QueryKey: QueryRecord] = [:]
     private var revision: UInt64 = 0
 
-    public init() {}
+    private let automaticallyMonitorsNetwork: Bool
+    private let onlineGate = QueryOnlineGate()
+    private var networkTask: Task<Void, Never>?
+    private var online = true
+
+    /// Disable monitoring when driving connectivity explicitly (for example in tests).
+    public init(automaticallyMonitorsNetwork: Bool = true) {
+        self.automaticallyMonitorsNetwork = automaticallyMonitorsNetwork
+    }
+
+    /// Supply a connectivity transition. No-op for repeated values. This never
+    /// invalidates fresh data or starts requests for inactive/disabled observers.
+    public func setOnline(_ value: Bool) {
+        guard online != value else { return }
+        online = value
+        onlineGate.setOnline(value)
+        for key in Array(records.keys) {
+            guard var record = records[key] else { continue }
+            record.isPaused = !value && record.requestID != nil && record.waitingForNetwork
+            records[key] = record
+            publish(key)
+            if value, record.isStale, record.reconnectsAutomatically { start(key) }
+        }
+    }
+
+    private func ensureNetworkMonitoring() {
+        guard automaticallyMonitorsNetwork, networkTask == nil else { return }
+        let updates = QueryNetworkMonitor.shared.updates()
+        networkTask = Task { [weak self] in
+            for await online in updates {
+                guard !Task.isCancelled else { return }
+                await self?.setOnline(online)
+            }
+        }
+    }
 
     deinit {
+        networkTask?.cancel()
         for record in records.values {
             record.task?.cancel()
             record.gcTask?.cancel()
@@ -25,6 +60,7 @@ public actor QueryClient {
         retry: Int = 0,
         retryDelay: CacheDuration = .seconds(1),
         exponentialBackoff: Bool = false,
+        networkMode: QueryNetworkMode = .online,
         _ operation: @escaping @Sendable () async throws -> Value
     ) async throws -> Value {
         // The throwing imperative API cannot represent an idle result without data.
@@ -32,7 +68,8 @@ public actor QueryClient {
         guard enabled else { throw QueryError.disabled(key) }
         return try await execute(key: key, options: QueryOptions(
             cacheTime: cacheTime, retry: retry, retryDelay: retryDelay,
-            exponentialBackoff: exponentialBackoff, staleTime: staleTime, gcTime: gcTime
+            exponentialBackoff: exponentialBackoff, staleTime: staleTime, gcTime: gcTime,
+            networkMode: networkMode
         ), force: false, operation: operation)
     }
 
@@ -41,6 +78,7 @@ public actor QueryClient {
         operation: @escaping @Sendable () async throws -> Value
     ) async throws -> Value {
         try Task.checkCancellation()
+        ensureNetworkMonitoring()
         try configure(key, type: Value.self, options: options, operation: operation)
         if !force, let record = records[key], record.hasValue, !record.isStale,
            let value = record.value as? Value {
@@ -81,13 +119,18 @@ public actor QueryClient {
         record.gcID = nil
         let id = UUID()
         let options = record.options
+        let onlineGate = onlineGate
         record.requestID = id
+        record.isPaused = !online && options.networkMode == .online
+        record.waitingForNetwork = options.networkMode == .online
         record.requestStaleTime = options.staleTime
         record.task = Task { [weak self] in
             let result: Result<any Sendable, any Error>
             do {
                 let value = try await QueryExecutionContext.$currentKey.withValue(key) {
-                    try await Self.runWithRetry(options: options, operation: operation)
+                    try await Self.runWithRetry(options: options, onlineGate: onlineGate, networkWaitChanged: { [weak self] waiting in
+                        await self?.setWaitingForNetwork(waiting, key: key, id: id)
+                    }, operation: operation)
                 }
                 try Task.checkCancellation()
                 result = .success(value)
@@ -96,6 +139,15 @@ public actor QueryClient {
         }
         records[key] = record
         publish(key)
+    }
+
+    private func setWaitingForNetwork(_ waiting: Bool, key: QueryKey, id: UUID) {
+        guard var record = records[key], record.requestID == id else { return }
+        let wasPaused = record.isPaused
+        record.waitingForNetwork = waiting
+        record.isPaused = waiting && !online
+        records[key] = record
+        if wasPaused != record.isPaused { publish(key) }
     }
 
     private func wait(_ key: QueryKey) async throws -> any Sendable {
@@ -131,6 +183,8 @@ public actor QueryClient {
         record.waiters.removeAll()
         record.task = nil
         record.requestID = nil
+        record.isPaused = false
+        record.waitingForNetwork = false
         switch result {
         case .success(let value):
             record.value = value
@@ -154,6 +208,8 @@ public actor QueryClient {
         record.task?.cancel()
         record.task = nil
         record.requestID = nil
+        record.isPaused = false
+        record.waitingForNetwork = false
         let waiters = record.waiters.values
         record.waiters.removeAll()
         records[key] = record
@@ -171,11 +227,12 @@ public actor QueryClient {
         staleTime: CacheDuration? = nil, gcTime: CacheDuration = .default,
         retry: Int = 0, retryDelay: CacheDuration = .seconds(1),
         exponentialBackoff: Bool = false,
+        networkMode: QueryNetworkMode = .online,
         _ operation: @escaping @Sendable () async throws -> Value
     ) async {
         _ = try? await fetch(key: key, cacheTime: cacheTime, staleTime: staleTime,
                             gcTime: gcTime, retry: retry, retryDelay: retryDelay,
-                            exponentialBackoff: exponentialBackoff, operation)
+                            exponentialBackoff: exponentialBackoff, networkMode: networkMode, operation)
     }
 
     public func refetch<Value: Sendable>(key: QueryKey) async throws -> Value {
@@ -308,6 +365,7 @@ public actor QueryClient {
         key: QueryKey, options: QueryOptions, initialData: Value?,
         operation: @escaping @Sendable () async throws -> Value
     ) throws -> QuerySubscription<Value> {
+        ensureNetworkMonitoring()
         try validate(key, Value.self)
         if options.enabled {
             try configure(key, type: Value.self, options: options, operation: operation)
@@ -327,7 +385,7 @@ public actor QueryClient {
         records[key]?.gcTask?.cancel()
         records[key]?.gcTask = nil
         records[key]?.gcID = nil
-        records[key]?.observers[id] = QueryObserver(enabled: options.enabled) { record in
+        records[key]?.observers[id] = QueryObserver(enabled: options.enabled, refetchOnReconnect: options.refetchOnReconnect) { record in
             sink.yield(QuerySnapshot<Value>(record))
         }
         publish(key)
@@ -404,12 +462,20 @@ public actor QueryClient {
     }
 
     private static func runWithRetry(
-        options: QueryOptions,
+        options: QueryOptions, onlineGate: QueryOnlineGate,
+        networkWaitChanged: @escaping @Sendable (Bool) async -> Void,
         operation: @escaping @Sendable () async throws -> any Sendable
     ) async throws -> any Sendable {
         var attempt = 0
         while true {
             do {
+                try Task.checkCancellation()
+                let needsNetwork = options.networkMode == .online || (options.networkMode == .offlineFirst && attempt > 0)
+                if needsNetwork {
+                    await networkWaitChanged(true)
+                    try await onlineGate.wait()
+                    await networkWaitChanged(false)
+                }
                 try Task.checkCancellation()
                 return try await operation()
             } catch is CancellationError { throw CancellationError() }

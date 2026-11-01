@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.3 — 2026-11-02
+
+### Added
+- Shared system path monitoring and manually driven connectivity for deterministic tests.
+- `networkMode`, `refetchOnReconnect`, and adapter `isPaused` state. Offline attempts preserve cached data and retry budgets; reconnect refreshes active stale queries once per key.
+- TanStack-style `.online`, `.always`, and `.offlineFirst` modes, plus `fetchStatus` with distinct paused/fetching states. Existing state-based intervals support server recovery without path changes.
+- Coverage for offline cancellation, inactive/disabled queries, reconnect races, shared requests, and normal polling resumption.
+
+### Fixed
+- Keep loading and fetching indicators off when a manual refresh joins an already paused request, for both adapters.
+
+### Compatibility
+- New queries default to `.online` network mode. Local database/file operations should select `.always` to retain execution independent of network availability.
+- No additional retry timer is enabled by default. Existing fixed/state-based policies and manual refresh remain available.
+
+### Validation
+- All 115 package tests pass, including connectivity recovery, shared offline cancellation, paused manual refresh, and automatic-monitor lifetime coverage.
+- SwiftUI examples, iOS 15 API compatibility, optimized Swift Package Release build, and iOS Simulator Release build pass.
+
 ## 0.1.2 — 2026-10-26
 
 ### Added

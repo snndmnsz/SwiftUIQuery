@@ -54,7 +54,7 @@ struct LifecycleRestartTests {
     @Test(arguments: RestartAdapter.allCases)
     fileprivate func manualPollingCanRestartBeforeItsTaskBegins(adapter: RestartAdapter) async {
         let counter = CallCounter()
-        let query = adapter.make(client: QueryClient(), interval: .seconds(0.01)) {
+        let query = adapter.make(client: QueryClient(automaticallyMonitorsNetwork: false), interval: .seconds(0.01)) {
             await counter.increment()
         }
         // No suspension: both tasks are enqueued before either can enter fetch().
@@ -68,7 +68,7 @@ struct LifecycleRestartTests {
     @available(iOS 17, *)
     @Test(arguments: RestartAdapter.allCases)
     fileprivate func cancelledFetchDoesNotDetachActiveLifecycle(adapter: RestartAdapter) async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let query = adapter.make(client: client) { 1 }
         let active = Task { await query.run() }
         #expect(await eventually { query.data == 1 })
@@ -87,7 +87,7 @@ struct LifecycleRestartTests {
     fileprivate func immediateRestartKeepsReplacementSubscribed(
         adapter: RestartAdapter, loop: RestartLoop
     ) async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let gate = TestGate()
         let query = adapter.make(client: client, interval: .hours(1)) {
             await gate.pause()
@@ -119,7 +119,7 @@ struct LifecycleRestartTests {
     fileprivate func manualPollingCanRestartDuringInitialFetch(adapter: RestartAdapter) async {
         let gate = TestGate()
         let counter = CallCounter()
-        let query = adapter.make(client: QueryClient(), interval: .seconds(0.01)) {
+        let query = adapter.make(client: QueryClient(automaticallyMonitorsNetwork: false), interval: .seconds(0.01)) {
             let value = await counter.increment()
             if value == 1 { await gate.pause() }
             return value
@@ -139,7 +139,7 @@ struct LifecycleRestartTests {
     fileprivate func alreadyCancelledCallerDoesNotDetachActiveLifecycle(
         adapter: RestartAdapter, loop: RestartLoop
     ) async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let query = adapter.make(client: client, interval: .hours(1)) { 1 }
         let active = Task { await query.run() }
         #expect(await eventually { query.data == 1 })

@@ -5,7 +5,7 @@ import SwiftUIQuery
 struct CacheLifecycleTests {
     @Test(arguments: [false, true])
     func staleCompletionMustNotOverwriteNewValue(invalidateAll: Bool) async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let gate = Gate()
         let old = Task {
             try await client.fetch(key: "item") {
@@ -28,7 +28,7 @@ struct CacheLifecycleTests {
     }
 
     @Test func rejectedTypeMustNotReplaceRegisteredOperation() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let _: Int = try await client.fetch(key: "typed") { 42 }
         do {
             let _: String = try await client.fetch(key: "typed") { "wrong type" }
@@ -40,7 +40,7 @@ struct CacheLifecycleTests {
 
     @Test(arguments: Removal.allCases)
     func removingEntryMustNotRestoreItOnOldCompletion(removal: Removal) async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let gate = Gate()
         let old = Task {
             try await client.fetch(key: "account") {
@@ -65,7 +65,7 @@ struct CacheLifecycleTests {
     }
 
     @Test func rejectedInFlightTypePreservesOriginalOperation() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let gate = Gate()
         let pending = Task {
             try await client.fetch(key: "typed-active") {
@@ -85,7 +85,7 @@ struct CacheLifecycleTests {
     }
 
     @Test func expiredValueDoesNotAllowTypeReplacement() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let _: Int = try await client.fetch(key: "expired", cacheTime: .seconds(0)) { 42 }
         do {
             let _: String = try await client.fetch(key: "expired") { "invalid" }
@@ -96,7 +96,7 @@ struct CacheLifecycleTests {
     }
 
     @Test func removalAllowsNewTypeWithoutOldWriteContamination() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let gate = Gate()
         let pending = Task {
             try await client.fetch(key: "reused") {
@@ -114,7 +114,7 @@ struct CacheLifecycleTests {
     }
 
     @Test func cachesOptionalNilWithoutExecutingAgain() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
         let first: Int? = try await client.fetch(key: "nil") {
             await counter.increment()
@@ -130,7 +130,7 @@ struct CacheLifecycleTests {
     }
 
     @Test func cacheHitRegistersLatestValidOperation() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let first: Int = try await client.fetch(key: "latest") { 1 }
         let cached: Int = try await client.fetch(key: "latest") { 2 }
         let refreshed: Int = try await client.refetch(key: "latest")

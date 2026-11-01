@@ -37,7 +37,7 @@ func eventually(_ predicate: @MainActor () async -> Bool) async -> Bool {
 @MainActor
 struct QueryLifecycleTests {
     @Test func sharedResultsReceiveRefetchAndSetData() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
         let a = QueryResult<Int>(key: "shared", client: client) { await counter.increment() }
         let b = ObservableQueryResult<Int>(key: "shared", client: client) { await counter.increment() }
@@ -51,7 +51,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func activeInvalidationRefetchesButDisabledObserverStaysIdle() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
         let active = ObservableQueryResult<Int>(key: "items/1", client: client) { await counter.increment() }
         let disabled = ObservableQueryResult<Int>(key: "items/2", client: client,
@@ -68,7 +68,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func sameKeyLateResultCannotOverwriteUI() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let gate = TestGate()
         let counter = CallCounter()
         let query = ObservableQueryResult<Int>(key: "race", client: client) {
@@ -88,7 +88,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func initialDataSeedsCacheAndCacheHitKeepsOriginalTimestamp() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
         let a = ObservableQueryResult<Int>(key: "initial", client: client, initialData: 7) {
             await counter.increment()
@@ -104,7 +104,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func disabledQueryCanReadSharedDataWithoutAnError() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         try await client.setQueryData(key: "disabled", data: 8)
         let query = ObservableQueryResult<Int>(key: "disabled", client: client,
                                               options: QueryOptions(enabled: false)) { 99 }
@@ -115,7 +115,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func previousDataIsPlaceholderAndNeverSeedsNewKey() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let query = ObservableQueryResult<Int>(key: "page/1", client: client) { 1 }
         await query.fetch()
         query.update(key: "page/2") { 2 }
@@ -127,7 +127,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func removeResetsAllObserversAndAllowsManualReload() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let query = ObservableQueryResult<Int>(key: "removed", client: client) { 42 }
         await query.fetch()
         await client.removeAll()
@@ -138,7 +138,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func explicitCancellationResumesWaitersBeforeUncooperativeWorkFinishes() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let gate = TestGate()
         let task = Task { try await client.fetch(key: "cancel") { await gate.pause(); return 1 } }
         await gate.waitForStart()
@@ -152,7 +152,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func cancellingOneWaiterDoesNotCancelOtherConsumer() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let gate = TestGate()
         let first = Task { try await client.fetch(key: "joined") { await gate.pause(); return 7 } }
         await gate.waitForStart()
@@ -168,7 +168,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func cancellingLastWaiterReachesOperation() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let started = TestGate()
         let observedCancellation = TestGate()
         let task = Task {
@@ -187,7 +187,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func zeroFreshnessStillDeduplicatesAndPreservesStarterPolicy() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let gate = TestGate()
         let counter = CallCounter()
         let first = Task {
@@ -213,7 +213,7 @@ struct QueryLifecycleTests {
 
 
     @Test func pollingActuallyRefreshesDespiteFreshCache() async {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
         let query = ObservableQueryResult<Int>(key: "poll", client: client,
             options: QueryOptions(refetchInterval: .seconds(0.01), staleTime: .hours(1))) {
@@ -227,7 +227,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func zeroPollingIntervalIsRejected() async {
-        let query = ObservableQueryResult<Int>(key: "zero-poll", client: QueryClient(),
+        let query = ObservableQueryResult<Int>(key: "zero-poll", client: QueryClient(automaticallyMonitorsNetwork: false),
                                                options: QueryOptions(refetchInterval: .seconds(0))) { 1 }
         await query.runPeriodicRefetch()
         guard case .invalidRefetchInterval = query.error as? QueryError else {
@@ -237,7 +237,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func runDetachesOnViewTaskCancellationWithoutPolling() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let query = ObservableQueryResult<Int>(key: "view", client: client,
                                                options: QueryOptions(gcTime: .seconds(0))) { 1 }
         let task = Task { await query.run() }
@@ -249,7 +249,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func staleTimeNotifiesObserversWithoutEvictingData() async throws {
-        let query = ObservableQueryResult<Int>(key: "stale", client: QueryClient(),
+        let query = ObservableQueryResult<Int>(key: "stale", client: QueryClient(automaticallyMonitorsNetwork: false),
                                                options: QueryOptions(staleTime: .seconds(0.01))) { 1 }
         await query.fetch()
         #expect(await eventually { query.isStale })
@@ -258,7 +258,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func oldFailureCannotClearNewRequest() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let oldGate = TestGate(), newGate = TestGate()
         let old = Task { try await client.fetch(key: "failure") { () async throws -> Int in
             await oldGate.pause(); throw LifecycleError.rejected
@@ -275,7 +275,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func disposeEndsLifecycleWaitWithoutCancellingCaller() async {
-        let query = ObservableQueryResult<Int>(key: "dispose-run", client: QueryClient()) { 1 }
+        let query = ObservableQueryResult<Int>(key: "dispose-run", client: QueryClient(automaticallyMonitorsNetwork: false)) { 1 }
         let task = Task { await query.run() }
         #expect(await eventually { query.data == 1 })
         query.dispose()
@@ -284,7 +284,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func failedSubscriptionCanRecoverAfterConflictingRecordIsRemoved() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         try await client.setQueryData(key: "recover", data: "string")
         let query = ObservableQueryResult<Int>(key: "recover", client: client) { 42 }
         await query.fetch()
@@ -296,7 +296,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func joiningWithInitialDataDoesNotCancelAnExistingRequest() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let gate = TestGate()
         let first = Task { try await client.fetch(key: "seed-join") { await gate.pause(); return 7 } }
         await gate.waitForStart()
@@ -312,7 +312,7 @@ struct QueryLifecycleTests {
 
     @Test func disposingDuringFetchCancelsItsWaiterAndCooperativeOperation() async {
         let started = TestGate(), cancelled = TestGate()
-        let query = ObservableQueryResult<Int>(key: "dispose-fetch", client: QueryClient()) {
+        let query = ObservableQueryResult<Int>(key: "dispose-fetch", client: QueryClient(automaticallyMonitorsNetwork: false)) {
             await started.release()
             do { try await Task.sleep(nanoseconds: 3_600_000_000_000) }
             catch { await cancelled.release(); throw error }
@@ -327,7 +327,7 @@ struct QueryLifecycleTests {
     }
 
     @Test func originalErrorTypeIsPreserved() async {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         do {
             let _: Int = try await client.fetch(key: "error") { throw LifecycleError.rejected }
             Issue.record("Expected failure")

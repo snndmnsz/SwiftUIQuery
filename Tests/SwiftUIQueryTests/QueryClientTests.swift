@@ -4,7 +4,7 @@ import Testing
 @Suite("QueryClient")
 struct QueryClientTests {
     @Test func returnsCachedValueWithoutExecutingAgain() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
 
         let first: Int = try await client.fetch(key: "answer") {
@@ -22,7 +22,7 @@ struct QueryClientTests {
     }
 
     @Test func expiredValueFetchesAgain() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
 
         let first: Int = try await client.fetch(key: "short", cacheTime: .seconds(0.01)) {
@@ -43,7 +43,7 @@ struct QueryClientTests {
     }
 
     @Test func simultaneousCallersShareOneTask() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
 
         async let first: Int = client.fetch(key: "shared") {
@@ -65,7 +65,7 @@ struct QueryClientTests {
     }
 
     @Test func invalidateForcesNextFetch() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
 
         let first: Int = try await client.fetch(key: "invalidate") { 1 }
         await client.invalidate("invalidate")
@@ -76,7 +76,7 @@ struct QueryClientTests {
     }
 
     @Test func removeClearsOperationAndValue() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
 
         let value: Int = try await client.fetch(key: "remove") { 1 }
         await client.remove("remove")
@@ -93,7 +93,7 @@ struct QueryClientTests {
     }
 
     @Test func disabledFetchDoesNotExecute() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
 
         do {
@@ -111,7 +111,7 @@ struct QueryClientTests {
     }
 
     @Test func cancellationPropagatesAsSwiftCancellationError() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
 
         do {
             let _: Int = try await client.fetch(key: "cancelled") {
@@ -125,7 +125,7 @@ struct QueryClientTests {
     }
 
     @Test func retryExecutesUntilSuccess() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
 
         let value: Int = try await client.fetch(
@@ -145,7 +145,7 @@ struct QueryClientTests {
     }
 
     @Test func refetchUsesRegisteredOperation() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
 
         let first: Int = try await client.fetch(key: "refetch") {
@@ -160,7 +160,7 @@ struct QueryClientTests {
     }
 
     @Test func operationRunsWithCurrentQueryKey() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
 
         let key: QueryKey = "context-key"
         let observedKey: QueryKey? = try await client.fetch(key: key) {
@@ -171,7 +171,7 @@ struct QueryClientTests {
     }
 
     @Test func typeMismatchThrows() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
 
         let _: Int = try await client.fetch(key: "typed") { 1 }
 
@@ -186,7 +186,7 @@ struct QueryClientTests {
 
     @available(iOS 17, *)
     @Test @MainActor func queryResultKeepsPreviousDataWhenRefetchFails() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let scenario = FailingAfterFirstSuccess()
         let result = QueryResult<Int>(
             key: "visible-data",
@@ -205,7 +205,7 @@ struct QueryClientTests {
 
     @available(iOS 17, *)
     @Test @MainActor func queryResultKeepsPreviousDataWhenUpdated() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let result = QueryResult<Int>(
             key: "first-key",
             client: client
@@ -229,7 +229,7 @@ struct QueryClientTests {
 
     @available(iOS 17, *)
     @Test @MainActor func queryResultCanClearPreviousDataWhenUpdated() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let result = QueryResult<Int>(
             key: "clear-first",
             client: client
@@ -251,7 +251,7 @@ struct QueryClientTests {
 
     @available(iOS 17, *)
     @Test @MainActor func staleUpdatedFetchDoesNotOverwriteLatestData() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let gate = FetchGate()
         let result = QueryResult<Int>(
             key: "stale-first",
@@ -277,7 +277,7 @@ struct QueryClientTests {
 
     @available(iOS 17, *)
     @Test @MainActor func queryResultCancelsPeriodicRefetchOnDeinit() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
         weak var weakResult: QueryResult<Int>?
 

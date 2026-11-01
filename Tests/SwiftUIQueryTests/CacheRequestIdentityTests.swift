@@ -4,7 +4,7 @@ import Testing
 @Suite("Cache request ownership")
 struct CacheRequestIdentityTests {
     @Test func invalidationDoesNotDisturbOtherKeys() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let _: Int = try await client.fetch(key: "one") { 1 }
         let _: Int = try await client.fetch(key: "two") { 2 }
         await client.invalidate("one")

@@ -50,6 +50,8 @@ public final class ObservableQueryResult<Value: Sendable>: ObservableObject {
         }
     }
 
+    public var fetchStatus: QueryFetchStatus { state.fetchStatus }
+    public var isPaused: Bool { state.isPaused }
     public var isStale: Bool { state.isStale }
     public var isPreviousData: Bool { state.isPreviousData }
     /// Detaches this observer and stops polling, for example when a UIKit screen disappears.

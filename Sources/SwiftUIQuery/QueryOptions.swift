@@ -1,5 +1,14 @@
 import Foundation
 
+/// Whether a query should wait while the system reports no available network path.
+public enum QueryNetworkMode: Sendable {
+    case online
+    /// For local operations or transports that manage connectivity themselves.
+    case always
+    /// Attempt once (for a local/HTTP cache), then wait for connectivity before retries.
+    case offlineFirst
+}
+
 /// Per-request query behavior.
 public struct QueryOptions: Sendable, Equatable {
     public var enabled: Bool
@@ -19,6 +28,9 @@ public struct QueryOptions: Sendable, Equatable {
     public var retryOnMount: Bool
     /// Refresh stale cached data when an adapter lifecycle starts again.
     public var refetchOnMount: Bool
+    /// Refresh active stale queries after an offline-to-online transition.
+    public var refetchOnReconnect: Bool
+    public var networkMode: QueryNetworkMode
 
     public init(
         enabled: Bool = true,
@@ -31,7 +43,9 @@ public struct QueryOptions: Sendable, Equatable {
         staleTime: CacheDuration? = nil,
         gcTime: CacheDuration = .default,
         retryOnMount: Bool = true,
-        refetchOnMount: Bool = true
+        refetchOnMount: Bool = true,
+        refetchOnReconnect: Bool? = nil,
+        networkMode: QueryNetworkMode = .online
     ) {
         self.enabled = enabled
         self.staleTime = staleTime ?? cacheTime
@@ -43,5 +57,7 @@ public struct QueryOptions: Sendable, Equatable {
         self.keepPreviousData = keepPreviousData
         self.retryOnMount = retryOnMount
         self.refetchOnMount = refetchOnMount
+        self.refetchOnReconnect = refetchOnReconnect ?? (networkMode != .always)
+        self.networkMode = networkMode
     }
 }

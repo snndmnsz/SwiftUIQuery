@@ -2,7 +2,7 @@
 
 [Documentation index](../README.md#documentation)
 
-API baseline: **0.1.2**. Swift 6.0+, iOS 15+, macOS 14+.
+API baseline: **0.1.3**. Swift 6.0+, iOS 15+, macOS 14+.
 
 ## QueryClient
 
@@ -40,6 +40,8 @@ An actor; calls from outside its isolation use `await`.
 | `keepPreviousData` | true | Keep observer-local previous-key placeholder after update. |
 | `retryOnMount` | true | Allow a failed query to load when a lifecycle starts again. |
 | `refetchOnMount` | true | Allow stale cached data to refresh when a lifecycle starts again. |
+| `refetchOnReconnect` | true, except `.always` mode | Refresh active stale queries after reconnect. |
+| `networkMode` | `.online` | `.online`, `.always`, or `.offlineFirst`; controls offline initial attempts and retries. |
 
 `CacheDuration.seconds/minutes/hours/days` constructs durations. Negative and NaN values normalize to zero. Very large sleep durations saturate rather than overflowing.
 
@@ -88,3 +90,7 @@ State: `state`, `data`, `variables`, `error`, `isPending`, `isSuccess`, `isError
 `QueryError`: disabled, missingOperation, typeMismatch, cancelled, underlying, disposed, ownerReleased, invalidRefetchInterval. Task cancellation uses Swift CancellationError. Service errors preserve their concrete type.
 
 `QueryExecutionContext.currentKey` is a task-local optional QueryKey during query operation execution. QueryKey is a Hashable, Sendable raw-string identifier with string-literal support.
+
+## Connectivity
+
+See [Connectivity and recovery](Connectivity.md) for `QueryClient(automaticallyMonitorsNetwork:)`, `setOnline(_:)`, `networkMode`, reconnect policies, `fetchStatus`/`isPaused`, and state-based recovery polling. These apply to both result adapters.

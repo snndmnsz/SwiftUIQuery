@@ -7,7 +7,7 @@ import SwiftUIQuery
 @Suite("UIKit Combine consumers", .timeLimit(.minutes(1)))
 struct UIKitConsumerTests {
     @Test func disappearingAndReappearingReadsLatestSharedCache() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let counter = CallCounter()
         let query = ObservableQueryResult<Int>(key: "screen", client: client) {
             await counter.increment()
@@ -25,7 +25,7 @@ struct UIKitConsumerTests {
     }
 
     @Test func detachingUIKitConsumerKeepsOtherConsumersRequestAlive() async {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let gate = TestGate()
         let query = ObservableQueryResult<Int>(key: "shared-screen", client: client) {
             await gate.pause()
@@ -70,7 +70,7 @@ struct UIKitConsumerTests {
     }
 
     @Test func cancellingCombineSubscriptionStopsUIDelivery() async {
-        let query = ObservableQueryResult<Int>(key: "subscription", client: QueryClient(), initialData: 5) { 9 }
+        let query = ObservableQueryResult<Int>(key: "subscription", client: QueryClient(automaticallyMonitorsNetwork: false), initialData: 5) { 9 }
         var received: [Int?] = []
         let subscription = query.$state.sink { received.append($0.data) }
         #expect(received == [5])
@@ -85,7 +85,7 @@ struct UIKitConsumerTests {
         weak var releasedScreen: CombineScreen?
         weak var releasedQuery: ObservableQueryResult<Int>?
         do {
-            let query = ObservableQueryResult<Int>(key: "lifetime", client: QueryClient()) { 1 }
+            let query = ObservableQueryResult<Int>(key: "lifetime", client: QueryClient(automaticallyMonitorsNetwork: false)) { 1 }
             let screen = CombineScreen(query: query)
             releasedScreen = screen
             releasedQuery = query

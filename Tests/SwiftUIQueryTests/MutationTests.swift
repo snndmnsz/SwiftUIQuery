@@ -19,7 +19,7 @@ import SwiftUIQuery
     }
 
     @Test func pendingLastsThroughCallbacksAndInvalidation() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let calls = CallCounter()
         let query = ObservableQueryResult<Int>(key: "count", client: client) { await calls.increment() }
         await query.fetch()
@@ -41,7 +41,7 @@ import SwiftUIQuery
     }
 
     @Test func failureAutomaticallyRollsBackBeforeErrorCallbacks() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         try await client.setQueryData(key: "favorite", data: false)
         var errorSawRollback = false
         let mutation = ObservableMutationResult<Bool, Bool>(operation: { _ in throw LifecycleError.rejected },
@@ -57,7 +57,7 @@ import SwiftUIQuery
     }
 
     @Test func rollbackCannotOverwriteNewerServerDataOrRemovedKey() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         try await client.setQueryData(key: "item", data: 1)
         let rollback = try await client.optimisticUpdate(key: "item", as: Int.self) { _ in 2 }
         try await client.setQueryData(key: "item", data: 3)
@@ -71,7 +71,7 @@ import SwiftUIQuery
     }
 
     @Test func rollbackRestoresAbsenceAndCanOnlyRunOnce() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let rollback = try await client.optimisticUpdate(key: "new", as: Int.self) { _ in 2 }
         #expect(await rollback.rollback())
         #expect(try await client.getQueryData(key: "new", as: Int.self) == nil)
@@ -79,7 +79,7 @@ import SwiftUIQuery
     }
 
     @Test func optionalNilIsRealCachedData() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         try await client.setQueryData(key: "optional", data: nil as Int?)
         let rollback = try await client.optimisticUpdate(key: "optional", as: Int?.self) { _ in 2 }
         #expect(await rollback.rollback())
@@ -89,7 +89,7 @@ import SwiftUIQuery
     }
 
     @Test func updaterIsAtomicAcrossConcurrentCalls() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         try await client.setQueryData(key: "counter", data: 0)
         try await withThrowingTaskGroup(of: Void.self) { group in
             for _ in 0..<100 {
@@ -101,7 +101,7 @@ import SwiftUIQuery
     }
 
     @Test func rejectedCacheWriteDoesNotCancelValidWork() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let gate = TestGate()
         let pending = Task { try await client.fetch(key: "typed-write") { await gate.pause(); return 42 } }
         await gate.waitForStart()
@@ -146,7 +146,7 @@ import SwiftUIQuery
     }
 
     @Test func cancellationRollsBackAnUnfinishedMutation() async throws {
-        let client = QueryClient()
+        let client = QueryClient(automaticallyMonitorsNetwork: false)
         let started = TestGate()
         try await client.setQueryData(key: "cancel-mutation", data: 1)
         let mutation = MutationResult<Int, Int>(operation: { _ in

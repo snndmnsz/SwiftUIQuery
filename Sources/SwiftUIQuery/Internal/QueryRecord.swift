@@ -14,6 +14,8 @@ struct QueryRecord: Sendable {
     var options = QueryOptions()
     var operation: (@Sendable () async throws -> any Sendable)?
     var requestID: UUID?
+    var isPaused = false
+    var waitingForNetwork = false
     var task: Task<Void, Never>?
     var waiters: [UUID: CheckedContinuation<any Sendable, any Error>] = [:]
     var observers: [UUID: QueryObserver] = [:]
@@ -27,10 +29,14 @@ struct QueryRecord: Sendable {
         invalidated || freshUntil.map { Date.now >= $0 } ?? true
     }
     var isActive: Bool { observers.values.contains { $0.enabled } }
+    var reconnectsAutomatically: Bool {
+        observers.values.contains { $0.enabled && $0.refetchOnReconnect }
+    }
 }
 
 struct QueryObserver: Sendable {
     let enabled: Bool
+    let refetchOnReconnect: Bool
     let receive: @Sendable (QueryRecord) -> Void
 }
 
@@ -45,10 +51,11 @@ struct QuerySnapshot<Value: Sendable>: Sendable {
         state = QueryState(
             data: record.hasValue ? record.value as? Value : nil,
             error: record.error,
-            isLoading: !record.hasValue && record.requestID != nil,
-            isFetching: record.requestID != nil,
+            isLoading: !record.hasValue && record.requestID != nil && !record.isPaused,
+            isFetching: record.requestID != nil && !record.isPaused,
             lastUpdated: record.updatedAt,
-            isStale: record.isStale
+            isStale: record.isStale,
+            isPaused: record.isPaused
         )
     }
 }

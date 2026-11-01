@@ -50,6 +50,8 @@ public final class QueryResult<Value: Sendable> {
         }
     }
 
+    public var fetchStatus: QueryFetchStatus { state.fetchStatus }
+    public var isPaused: Bool { state.isPaused }
     public var isStale: Bool { state.isStale }
     public var isPreviousData: Bool { state.isPreviousData }
     public func stopObserving() { controller.stopObserving() }
